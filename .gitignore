@@ -1,0 +1,40 @@
+# Environment
+.env
+*.env
+
+# Data & outputs
+data/
+exports/
+reports/
+logs/
+*.db
+*.sqlite
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Browser drivers
+chromedriver
+geckodriver
+*.crdownload
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
