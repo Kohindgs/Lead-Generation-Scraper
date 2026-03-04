@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from src.config import db_cfg
-from src.models import Lead, OutreachMessage, LeadStatus, LeadSource
+from src.models import Lead, OutreachMessage, LeadStatus, LeadSource, ServiceRequestPost
 from src.utils.helpers import get_logger
 
 logger = get_logger(__name__)
@@ -110,11 +110,40 @@ def init_db():
             duration_seconds REAL
         );
 
+        CREATE TABLE IF NOT EXISTS service_request_posts (
+            id TEXT PRIMARY KEY,
+            post_text TEXT,
+            post_url TEXT,
+            poster_urn TEXT,
+            poster_name TEXT,
+            poster_first_name TEXT,
+            poster_title TEXT,
+            poster_company TEXT,
+            poster_linkedin_url TEXT,
+            services_requested TEXT,
+            keywords_matched TEXT,
+            urgency TEXT,
+            budget_mentioned INTEGER DEFAULT 0,
+            location_mentioned TEXT,
+            opportunity_score INTEGER DEFAULT 0,
+            is_qualified INTEGER DEFAULT 0,
+            dm_sent INTEGER DEFAULT 0,
+            dm_sent_at TEXT,
+            dm_message TEXT,
+            post_age_hours REAL,
+            engagement INTEGER DEFAULT 0,
+            scraped_at TEXT,
+            notes TEXT,
+            lead_id TEXT
+        );
+
         CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
         CREATE INDEX IF NOT EXISTS idx_leads_source ON leads(source);
         CREATE INDEX IF NOT EXISTS idx_leads_score ON leads(lead_score);
         CREATE INDEX IF NOT EXISTS idx_leads_industry ON leads(industry);
         CREATE INDEX IF NOT EXISTS idx_outreach_lead ON outreach_messages(lead_id);
+        CREATE INDEX IF NOT EXISTS idx_posts_score ON service_request_posts(opportunity_score);
+        CREATE INDEX IF NOT EXISTS idx_posts_dm ON service_request_posts(dm_sent);
         """)
     logger.info("Database initialised at %s", db_cfg.path)
 
@@ -213,6 +242,67 @@ def update_lead_status(lead_id: str, status: str):
         conn.execute(
             "UPDATE leads SET status=? WHERE id=?", (status, lead_id)
         )
+
+
+def upsert_service_post(post: ServiceRequestPost):
+    """Insert or update a service-request post."""
+    with get_connection() as conn:
+        conn.execute("""
+            INSERT INTO service_request_posts
+            (id, post_text, post_url, poster_urn, poster_name, poster_first_name,
+             poster_title, poster_company, poster_linkedin_url, services_requested,
+             keywords_matched, urgency, budget_mentioned, location_mentioned,
+             opportunity_score, is_qualified, dm_sent, dm_sent_at, dm_message,
+             post_age_hours, engagement, scraped_at, notes, lead_id)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(id) DO UPDATE SET
+                dm_sent=excluded.dm_sent,
+                dm_sent_at=excluded.dm_sent_at,
+                dm_message=excluded.dm_message,
+                opportunity_score=excluded.opportunity_score,
+                lead_id=excluded.lead_id
+        """, (
+            post.id, post.post_text, post.post_url, post.poster_urn,
+            post.poster_name, post.poster_first_name, post.poster_title,
+            post.poster_company, post.poster_linkedin_url,
+            json.dumps(post.services_requested),
+            json.dumps(post.keywords_matched),
+            post.urgency, int(post.budget_mentioned), post.location_mentioned,
+            post.opportunity_score, int(post.is_qualified),
+            int(post.dm_sent),
+            post.dm_sent_at.isoformat() if post.dm_sent_at else None,
+            post.dm_message, post.post_age_hours, post.engagement,
+            post.scraped_at.isoformat(), post.notes, post.lead_id,
+        ))
+
+
+def get_seen_post_ids() -> set:
+    """Return set of post IDs already in the database."""
+    with get_connection() as conn:
+        rows = conn.execute("SELECT id FROM service_request_posts").fetchall()
+    return {r["id"] for r in rows}
+
+
+def get_service_posts_today() -> List[dict]:
+    """Return service posts scraped today."""
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM service_request_posts WHERE scraped_at LIKE ?",
+            (f"{today}%",)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_leads_today() -> List[dict]:
+    """Return leads scraped today."""
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM leads WHERE scraped_at LIKE ?",
+            (f"{today}%",)
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def get_stats() -> dict:

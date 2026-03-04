@@ -14,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
-from src.models import Lead, OutreachMessage, ScrapingResult
+from src.models import Lead, OutreachMessage, ScrapingResult, ServiceRequestPost
 from src.utils.database import get_leads, get_stats
 from src.utils.helpers import get_logger
 
@@ -63,6 +63,86 @@ def export_to_csv(leads: List[Lead], filename: Optional[str] = None) -> Path:
             writer.writerow({k: row.get(k, "") for k in LEAD_FIELDS})
 
     logger.info("Exported %d leads to CSV: %s", len(leads), path)
+    return path
+
+
+def export_service_posts(
+    posts: List[ServiceRequestPost],
+    filename: Optional[str] = None,
+) -> Path:
+    """Export service-request posts to Excel."""
+    try:
+        import pandas as pd
+    except ImportError:
+        logger.warning("pandas not installed — exporting service posts as CSV instead.")
+        filename_csv = (filename or "service_posts.xlsx").replace(".xlsx", ".csv")
+        path = EXPORT_DIR / filename_csv
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                "Score", "Urgency", "Poster Name", "Title", "Services Requested",
+                "Post Text", "Post URL", "DM Message", "DM Sent", "Age (h)",
+            ])
+            for p in posts:
+                writer.writerow([
+                    p.opportunity_score, p.urgency, p.poster_name, p.poster_title,
+                    "; ".join(p.services_requested), p.post_text[:300],
+                    p.post_url, p.dm_message or "", "Yes" if p.dm_sent else "No",
+                    round(p.post_age_hours or 0, 1),
+                ])
+        return path
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = filename or f"service_posts_{ts}.xlsx"
+    path = EXPORT_DIR / filename
+
+    rows = [
+        {
+            "Score":             p.opportunity_score,
+            "Urgency":           p.urgency,
+            "Poster Name":       p.poster_name,
+            "Title":             p.poster_title,
+            "Company":           p.poster_company,
+            "Services Requested": "; ".join(p.services_requested),
+            "Keywords Matched":  "; ".join(p.keywords_matched),
+            "Budget Mentioned":  "Yes" if p.budget_mentioned else "No",
+            "Location":          p.location_mentioned,
+            "Post Age (h)":      round(p.post_age_hours or 0, 1),
+            "Engagement":        p.engagement,
+            "Post Text":         p.post_text[:500],
+            "Post URL":          p.post_url or "",
+            "Poster LinkedIn":   p.poster_linkedin_url or "",
+            "DM Message":        p.dm_message or "",
+            "DM Sent":           "Yes" if p.dm_sent else "No",
+            "DM Sent At":        p.dm_sent_at.strftime("%Y-%m-%d %H:%M") if p.dm_sent_at else "",
+            "Scraped At":        p.scraped_at.strftime("%Y-%m-%d %H:%M"),
+        }
+        for p in posts
+    ]
+
+    df = pd.DataFrame(rows)
+    df.sort_values("Score", ascending=False, inplace=True)
+
+    with pd.ExcelWriter(str(path), engine="openpyxl") as writer_xl:
+        df.to_excel(writer_xl, index=False, sheet_name="Service Requests")
+        ws = writer_xl.sheets["Service Requests"]
+
+        # Header styling
+        try:
+            from openpyxl.styles import Font, PatternFill
+            header_fill = PatternFill("solid", fgColor="1F4E79")
+            for cell in ws[1]:
+                cell.font = Font(bold=True, color="FFFFFF")
+                cell.fill = header_fill
+        except Exception:
+            pass
+
+        # Auto-fit columns
+        for col in ws.columns:
+            max_len = max(len(str(c.value or "")) for c in col)
+            ws.column_dimensions[col[0].column_letter].width = min(max_len + 2, 60)
+
+    logger.info("Exported %d service posts to Excel: %s", len(posts), path)
     return path
 
 

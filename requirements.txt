@@ -45,6 +45,7 @@ redis==5.0.3
 # Scheduling & orchestration
 schedule==1.2.1
 celery==5.3.6
+apscheduler==3.10.4
 
 # Reporting & export
 jinja2==3.1.3

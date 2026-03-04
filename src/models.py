@@ -10,6 +10,7 @@ from pydantic import BaseModel, EmailStr, HttpUrl, Field
 
 class LeadSource(str, Enum):
     LINKEDIN = "linkedin"
+    LINKEDIN_POST = "linkedin_post"   # lead found via a service-request post
     GOOGLE_MAPS = "google_maps"
     GOOGLE_SEARCH = "google_search"
     MANUAL = "manual"
@@ -120,7 +121,49 @@ class Campaign(BaseModel):
     leads: List[Lead] = []
 
 
-class ScrapingResult(BaseModel):
+class ServiceRequestPost(BaseModel):
+    """
+    A LinkedIn post where someone is actively asking for a service
+    (e.g. 'Looking for a web designer', 'Need help with SEO').
+    """
+    id: str                              # urn:li:activity:xxxx or generated hash
+    post_text: str                       # Full text of the post
+    post_url: Optional[str] = None       # Direct link to the post
+
+    # Poster info (the potential lead)
+    poster_urn: str = ""
+    poster_name: str = ""
+    poster_first_name: str = ""
+    poster_title: str = ""
+    poster_company: str = ""
+    poster_linkedin_url: Optional[str] = None
+    poster_profile_image: Optional[str] = None
+
+    # What they're asking for
+    services_requested: List[str] = []   # e.g. ["Web Design", "SEO"]
+    keywords_matched: List[str] = []     # which trigger keywords matched
+    urgency: str = "medium"              # low / medium / high
+    budget_mentioned: bool = False
+    location_mentioned: str = ""
+
+    # Opportunity scoring
+    opportunity_score: int = 0           # 0-100
+    is_qualified: bool = False
+
+    # Outreach
+    dm_sent: bool = False
+    dm_sent_at: Optional[datetime] = None
+    dm_message: Optional[str] = None
+
+    # Meta
+    post_age_hours: Optional[float] = None
+    engagement: int = 0                  # likes + comments
+    scraped_at: datetime = Field(default_factory=datetime.utcnow)
+    notes: str = ""
+
+    # Link to lead if profile was fetched
+    lead_id: Optional[str] = None
+
     """Result of a single scraping run."""
     campaign_name: str
     source: LeadSource

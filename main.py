@@ -60,6 +60,34 @@ def main():
     gs.add_argument("--max-leads", type=int, default=30, help="Max leads")
     gs.add_argument("--no-outreach", action="store_true")
 
+    # ── post-scraper ──────────────────────────────────────────────────────────
+    ps = subparsers.add_parser(
+        "post-scraper",
+        help="Search LinkedIn posts for service requirements (hot inbound leads)"
+    )
+    ps.add_argument("--max-posts", type=int, default=60,
+                    help="Max posts to collect per run (default: 60)")
+    ps.add_argument("--send-dms", action="store_true",
+                    help="Auto-send DMs to qualified posters")
+    ps.add_argument("--dry-run", action="store_true",
+                    help="Preview results without saving or sending")
+    ps.add_argument("--min-score", type=int, default=45,
+                    help="Min opportunity score 0-100 (default: 45)")
+    ps.add_argument("--max-age-hours", type=float, default=48.0,
+                    help="Max post age in hours (default: 48)")
+    ps.add_argument("--services", nargs="*",
+                    help="Limit to specific services e.g. SEO 'Web Design & Development'")
+
+    # ── scheduler ─────────────────────────────────────────────────────────────
+    sch = subparsers.add_parser(
+        "scheduler",
+        help="Run post-scraper automatically on a schedule"
+    )
+    sch.add_argument("action", choices=["start", "status"],
+                     help="'start' to run the scheduler, 'status' to view config")
+    sch.add_argument("--once", action="store_true",
+                     help="Run one scrape pass then stop (no loop)")
+
     # ── all ───────────────────────────────────────────────────────────────────
     all_p = subparsers.add_parser("all", help="Run all scrapers in sequence")
     all_p.add_argument("--max-leads", type=int, default=50)
@@ -173,6 +201,12 @@ def main():
             generate_outreach=not args.no_outreach,
         )
 
+    elif args.command == "post-scraper":
+        _run_post_scraper(args)
+
+    elif args.command == "scheduler":
+        _run_scheduler(args)
+
     elif args.command == "leadsgorilla":
         _run_leadsgorilla(args)
 
@@ -201,6 +235,54 @@ def main():
             max_leads=args.max_leads // 2,
             generate_outreach=not args.no_outreach,
         )
+
+
+def _run_post_scraper(args):
+    """Run the LinkedIn service-requirement post scraper once."""
+    from src.utils.database import init_db
+    from src.scrapers.linkedin_post_scraper import LinkedInPostScraper
+    from src.export.exporter import export_service_posts
+
+    init_db()
+
+    scraper = LinkedInPostScraper()
+    posts = scraper.run(
+        max_posts=args.max_posts,
+        send_dms=args.send_dms,
+        dry_run=args.dry_run,
+        min_score=args.min_score,
+        max_post_age_hours=args.max_age_hours,
+        services_filter=args.services or None,
+    )
+
+    if posts and not args.dry_run:
+        export_service_posts(posts, "service_requests_latest.xlsx")
+        print(f"\nResults exported to: exports/service_requests_latest.xlsx")
+
+    print(f"\n{'='*55}")
+    print(f"  Post Scraper Complete")
+    print(f"  Qualified posts  : {len(posts)}")
+    hot = sum(1 for p in posts if p.opportunity_score >= 70)
+    warm = sum(1 for p in posts if 45 <= p.opportunity_score < 70)
+    print(f"  Hot (score≥70)   : {hot}")
+    print(f"  Warm (score≥45)  : {warm}")
+    dms_sent = sum(1 for p in posts if p.dm_sent)
+    if dms_sent:
+        print(f"  DMs sent         : {dms_sent}")
+    print(f"{'='*55}")
+
+
+def _run_scheduler(args):
+    """Start the automated scheduler."""
+    from src.scheduler import Scheduler
+    scheduler = Scheduler()
+    if args.action == "status":
+        scheduler.show_status()
+    elif args.action == "start":
+        if args.once:
+            scheduler.run_once()
+        else:
+            scheduler.start(run_immediately=True)
 
 
 def _run_leadsgorilla(args):
