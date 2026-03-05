@@ -25,7 +25,7 @@ nltk>=3.8.1
 # Google APIs
 google-api-python-client>=2.122.0
 googlemaps>=4.2.0
-google-search-results>=2.4.2
+google-search-results>=1.0.0
 
 # LinkedIn scraping helpers
 linkedin-api>=2.1.1
