@@ -32,7 +32,7 @@ linkedin-api==2.1.1
 
 # Email validation & enrichment
 pyIsEmail==1.4.0
-pyhunter==0.7.1
+pyhunter==1.7
 
 # Proxy / anti-detect
 requests-html==0.10.0
