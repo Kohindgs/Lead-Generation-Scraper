@@ -55,6 +55,7 @@ _FORM_FIELD_MAP = {
     "Website URL":       "website",
     # PSID is injected by the Apps Script as a hidden pre-filled field
     "PSID":              "psid",
+    "Reference ID":      "psid",
 }
 
 

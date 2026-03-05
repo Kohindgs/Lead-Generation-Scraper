@@ -50,6 +50,7 @@ var FIELD_MAP = {
   "Website":           "website",
   "Website URL":       "website",
   "PSID":              "psid",        // hidden pre-filled field
+  "Reference ID":      "psid",        // renamed label for the pre-filled PSID
   "Timestamp":         "timestamp",
 };
 
