@@ -4,12 +4,20 @@ Report Approval Workflow
 CLI tool for the DGenius team to review, approve, edit, and send
 brand audit reports BEFORE they reach the prospect.
 
-Workflow:
+Workflow (DOUBLE APPROVAL — manual until automation is enabled):
   1. Brand report is generated (by webhook handler after form submission)
   2. Admin runs: python main.py meta-reply review
   3. Admin sees pending reports one by one
-  4. Admin can: approve → send | skip | reject | edit subject/note
-  5. Approved reports are sent via Gmail (Google Business) to the lead's email
+
+  ── APPROVAL 1: REPORT REVIEW ──
+  4. Admin previews the full report content
+  5. Admin approves (or rejects/skips) the report itself
+
+  ── APPROVAL 2: EMAIL SEND CONFIRMATION ──
+  6. Admin sees a full preview of the email that will be sent
+     (subject line, recipient, personalised intro, report attachment name)
+  7. Admin confirms: YES send it / NO go back
+  8. Only after explicit confirmation is the email sent
 
 Usage:
   python main.py meta-reply review          # interactive review queue
@@ -257,6 +265,7 @@ def run_review_queue(dry_run: bool = False):
 
     print(f"\n{'='*65}")
     print(f"  BRAND REPORT REVIEW QUEUE — {len(pending)} pending")
+    print(f"  ⚠  DOUBLE APPROVAL REQUIRED before any email is sent.")
     print(f"{'='*65}")
 
     sender = ReportEmailSender()
@@ -274,26 +283,25 @@ def run_review_queue(dry_run: bool = False):
         print(f"  Contact  : {name} <{email}>")
         print(f"  Website  : {report.get('website', 'N/A')}")
         print(f"  Platform : {report.get('platform', 'N/A')}")
-        print(f"  Comment  : {report.get('comment_text', 'N/A')[:80]}")
         print(f"  Report   : {html_path}")
 
-        # Show pitch summary
+        # Show AI pitch summary
         if report.get("top_services"):
             try:
                 services = json.loads(report["top_services"])
-                print(f"  Top services to pitch: {', '.join(services)}")
+                print(f"  Top services to pitch : {', '.join(services)}")
             except Exception:
                 pass
         if report.get("pitch_angle"):
-            print(f"  Pitch angle: {report['pitch_angle']}")
+            print(f"  Pitch angle           : {report['pitch_angle']}")
         if report.get("opening_line"):
-            print(f"  Opening line: {report['opening_line'][:100]}")
+            print(f"  Suggested opener      : {report['opening_line'][:100]}")
 
         print()
-        print("  Actions:")
-        print("    [p] Preview report text")
-        print("    [a] Approve & send report now")
-        print("    [q] Approve & queue for later (don't send yet)")
+        print("  ── APPROVAL 1: REVIEW THE REPORT ─────────────────────")
+        print("    [p] Preview full report text")
+        print("    [a] Approve report (leads to email preview + send confirmation)")
+        print("    [q] Approve & queue for later (no email yet)")
         print("    [r] Reject (discard this report)")
         print("    [s] Skip (review later)")
         print()
@@ -311,31 +319,86 @@ def run_review_queue(dry_run: bool = False):
                 continue
 
             elif choice == "a":
+                # ── APPROVAL 1 PASSED ─────────────────────────────────
                 if not email:
-                    print("  No email address on file — cannot send. Skipping.")
-                    break
-                note = input("  Optional personal note to add (press Enter to skip): ").strip()
-                ok = sender.send_report(
-                    to_email=email,
-                    to_name=name,
-                    company_name=company,
-                    html_report_path=html_path,
-                    custom_note=note,
-                    dry_run=dry_run,
-                )
-                if ok:
+                    print("  No email address on file — cannot send.")
+                    print("  Marking as approved and queuing for manual send.")
                     _mark_approved(psid)
-                    _mark_sent(psid)
-                    print(f"  Report approved and sent to {name} <{email}>")
+                    break
+
+                note = input(
+                    "\n  Add a personal note to the email? (Press Enter to skip): "
+                ).strip()
+
+                # ── APPROVAL 2: EMAIL PREVIEW ─────────────────────────
+                first_name = (name or "there").split()[0]
+                subject = f"Your Free Brand Audit Report — {company} | {agency.name}"
+                attach_name = f"Brand_Audit_{company.replace(' ', '_')}.html"
+
+                print()
+                print(f"  {'─'*61}")
+                print(f"  ── APPROVAL 2: EMAIL PREVIEW ─────────────────────────")
+                print(f"  {'─'*61}")
+                print(f"  To      : {name} <{email}>")
+                print(f"  Subject : {subject}")
+                print(f"  Attach  : {attach_name}")
+                print()
+                print(f"  --- Email Body Preview ---")
+                print(f"  Hi {first_name},")
+                print()
+                print(f"  Thank you for reaching out! As promised, we've put together")
+                print(f"  your personalised Brand Audit Report for {company}.")
+                print()
+                print(f"  Inside you'll find:")
+                print(f"   • Website Analysis (score + specific improvements)")
+                print(f"   • SEO & Search Visibility (keyword gaps + local SEO)")
+                print(f"   • Social Media Presence (platform-by-platform breakdown)")
+                print(f"   • Generative AI Strategy (tools + opportunities for {company})")
+                print(f"   • What You're Missing Out On (real stats + revenue impact)")
+                print(f"   • 30/60/90-Day Priority Action Plan")
+                if note:
+                    print()
+                    print(f"  Personal note: {note}")
+                print()
+                print(f"  [CTA button: Book Your FREE 30-Min Strategy Call]")
+                print(f"  {'─'*61}")
+                print()
+                print("  Are you sure you want to send this email?")
+                print("  [y] YES — send now")
+                print("  [n] NO  — go back (report stays approved, not sent)")
+                print()
+
+                confirm = input("  Confirm send [y/n]: ").strip().lower()
+
+                if confirm == "y":
+                    ok = sender.send_report(
+                        to_email=email,
+                        to_name=name,
+                        company_name=company,
+                        html_report_path=html_path,
+                        custom_note=note,
+                        dry_run=dry_run,
+                    )
+                    if ok:
+                        _mark_approved(psid)
+                        _mark_sent(psid)
+                        print(f"\n  ✓ Report approved and sent to {name} <{email}>")
+                    else:
+                        print("  Send failed — check SMTP config.")
+                        print("  Report marked as approved. Retry with:")
+                        print(f"    python main.py meta-reply send --psid {psid}")
+                        _mark_approved(psid)
                 else:
-                    print("  Send failed — check SMTP config. Report marked approved but not sent.")
+                    print()
+                    print("  Send cancelled. Report is approved but NOT sent.")
+                    print(f"  Send later with: python main.py meta-reply send --psid {psid}")
                     _mark_approved(psid)
                 break
 
             elif choice == "q":
                 _mark_approved(psid)
-                print(f"  Report approved and queued. Send later with:")
-                print(f"    python main.py meta-reply send --psid {psid}")
+                print(f"  Report approved and queued (no email sent).")
+                print(f"  Send later with: python main.py meta-reply send --psid {psid}")
                 break
 
             elif choice == "r":
@@ -387,7 +450,7 @@ def list_reports():
 
 
 def force_send_report(psid: str, dry_run: bool = False):
-    """Force-send a specific approved report by PSID."""
+    """Force-send a specific approved report by PSID — requires confirmation before sending."""
     with _get_conn() as conn:
         row = conn.execute(
             """SELECT ml.*, rp.html_path
@@ -402,14 +465,35 @@ def force_send_report(psid: str, dry_run: bool = False):
         return
 
     row = dict(row)
+    to_email = row.get("company_email", "")
+    to_name = row.get("full_name", "")
+    company = row.get("company_name", "")
+    html_path = row.get("html_path") or row.get("report_path", "")
+
+    # Show confirmation before sending
+    subject = f"Your Free Brand Audit Report — {company} | {agency.name}"
+    print(f"\n{'─'*60}")
+    print(f"  SEND CONFIRMATION REQUIRED")
+    print(f"{'─'*60}")
+    print(f"  To      : {to_name} <{to_email}>")
+    print(f"  Subject : {subject}")
+    print(f"  Report  : {html_path}")
+    print(f"{'─'*60}")
+    print()
+
+    confirm = input("  Confirm send [y/n]: ").strip().lower()
+    if confirm != "y":
+        print("  Send cancelled.")
+        return
+
     sender = ReportEmailSender()
     ok = sender.send_report(
-        to_email=row.get("company_email", ""),
-        to_name=row.get("full_name", ""),
-        company_name=row.get("company_name", ""),
-        html_report_path=row.get("html_path") or row.get("report_path", ""),
+        to_email=to_email,
+        to_name=to_name,
+        company_name=company,
+        html_report_path=html_path,
         dry_run=dry_run,
     )
     if ok and not dry_run:
         _mark_sent(psid)
-        print(f"Report sent to {row.get('company_email')}.")
+        print(f"  Report sent to {to_email}.")
