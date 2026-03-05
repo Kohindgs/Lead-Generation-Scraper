@@ -20,7 +20,7 @@ tqdm==4.66.2
 openai==1.14.3
 anthropic==0.20.0
 nltk==3.8.1
-spacy==3.7.4
+# spacy==3.7.4  # optional NLP — install manually if needed: pip install spacy
 
 # Google APIs
 google-api-python-client==2.122.0
