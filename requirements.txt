@@ -1,6 +1,6 @@
 # Core scraping
 selenium==4.18.1
-seleniumwire==5.1.0
+# seleniumwire removed (incompatible with newer Python — selenium handles this)
 webdriver-manager==4.0.1
 playwright==1.42.0
 requests==2.31.0
