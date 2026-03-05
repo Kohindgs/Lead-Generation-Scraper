@@ -146,12 +146,13 @@ class DMSender:
         self.form_url = meta_cfg.google_form_url
         self.page_access_token = meta_cfg.page_access_token
 
-    def build_dm_text(self, commenter_name: str) -> str:
+    def build_dm_text(self, commenter_name: str, psid: str = "") -> str:
         first_name = commenter_name.split()[0] if commenter_name else "there"
+        form_url = self.form_url.replace("PSID_PLACEHOLDER", psid) if psid else self.form_url
         return DM_TEMPLATE.format(
             name=first_name,
             agency_name=agency.name,
-            form_url=self.form_url,
+            form_url=form_url,
             sender_name=agency.sender_name,
             agency_website=agency.website,
         )
@@ -161,7 +162,7 @@ class DMSender:
         Send a DM for a matched comment. Returns True if sent (or would be sent
         in dry_run mode).
         """
-        message = self.build_dm_text(comment.commenter_name)
+        message = self.build_dm_text(comment.commenter_name, comment.commenter_psid)
 
         if dry_run:
             print(f"\n{'─'*60}")
