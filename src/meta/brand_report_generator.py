@@ -359,24 +359,59 @@ Report prepared by: {agency.sender_name}, {agency.sender_title}
 # ── HTML converter ─────────────────────────────────────────────────────────────
 
 def _to_html(report_text: str, lead: LeadFormData, today: str) -> str:
-    """Convert the plain-text report to a clean HTML email body."""
+    """Convert the plain-text report to a branded HTML email body."""
+    from src.config import meta_cfg
+
     paragraphs = []
+    in_list = False
     for line in report_text.split("\n"):
         stripped = line.strip()
         if not stripped:
+            if in_list:
+                paragraphs.append("</ul>")
+                in_list = False
             continue
         if stripped.startswith("## "):
+            if in_list:
+                paragraphs.append("</ul>")
+                in_list = False
             paragraphs.append(f"<h2>{stripped[3:]}</h2>")
         elif stripped.startswith("### "):
+            if in_list:
+                paragraphs.append("</ul>")
+                in_list = False
             paragraphs.append(f"<h3>{stripped[4:]}</h3>")
         elif stripped.startswith("---"):
+            if in_list:
+                paragraphs.append("</ul>")
+                in_list = False
             paragraphs.append("<hr>")
         elif stripped.startswith("• ") or stripped.startswith("* "):
+            if not in_list:
+                paragraphs.append("<ul>")
+                in_list = True
             paragraphs.append(f"<li>{stripped[2:]}</li>")
         else:
+            if in_list:
+                paragraphs.append("</ul>")
+                in_list = False
             paragraphs.append(f"<p>{stripped}</p>")
+    if in_list:
+        paragraphs.append("</ul>")
 
     body = "\n".join(paragraphs)
+
+    # Logo: white-background DGS logo (best for emails)
+    logo_url = meta_cfg.logo_url
+    logo_html = (
+        f'<img src="{logo_url}" alt="DGenius Solutions" '
+        f'style="height:64px;width:auto;display:block;margin-bottom:20px;" />'
+        if logo_url else
+        '<div style="font-size:28px;font-weight:900;letter-spacing:-1px;'
+        'background:linear-gradient(90deg,#4fc3f7,#9c27b0,#ff7043);'
+        '-webkit-background-clip:text;-webkit-text-fill-color:transparent;'
+        'margin-bottom:20px;">DGS</div>'
+    )
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -385,58 +420,137 @@ def _to_html(report_text: str, lead: LeadFormData, today: str) -> str:
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Brand Audit Report — {lead.company_name}</title>
   <style>
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{
       font-family: 'Segoe UI', Arial, sans-serif;
-      max-width: 760px; margin: 0 auto; padding: 32px 24px;
-      color: #1a1a2e; background: #fff; line-height: 1.7;
+      background: #f4f6fb; color: #1a1a2e; line-height: 1.75;
     }}
+    .wrapper {{
+      max-width: 720px; margin: 0 auto; padding: 32px 16px;
+    }}
+    /* ── Header banner ── */
     .header {{
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
-      color: #fff; padding: 36px 32px; border-radius: 12px; margin-bottom: 32px;
+      background: #0d0d1a;
+      border-radius: 14px 14px 0 0;
+      padding: 36px 40px 28px;
+      text-align: left;
     }}
-    .header h1 {{ margin: 0 0 8px; font-size: 26px; font-weight: 700; }}
-    .header p  {{ margin: 0; opacity: 0.85; font-size: 14px; }}
+    .header-meta {{
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255,255,255,0.12);
+    }}
+    .header-meta p {{
+      color: rgba(255,255,255,0.7);
+      font-size: 13px;
+      margin: 2px 0;
+    }}
+    .header-meta strong {{ color: #fff; }}
+    /* ── Gradient accent bar ── */
+    .accent-bar {{
+      height: 5px;
+      background: linear-gradient(90deg, #4fc3f7 0%, #ab47bc 45%, #ff7043 100%);
+    }}
+    /* ── Content card ── */
+    .content {{
+      background: #fff;
+      padding: 40px 40px 32px;
+      border-radius: 0 0 14px 14px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+    }}
     h2 {{
-      color: #0f3460; border-left: 4px solid #e94560;
-      padding-left: 12px; margin-top: 36px;
+      color: #0d0d1a;
+      font-size: 17px;
+      font-weight: 700;
+      margin: 36px 0 10px;
+      padding-left: 14px;
+      border-left: 4px solid;
+      border-image: linear-gradient(180deg,#4fc3f7,#ab47bc) 1;
     }}
-    h3 {{ color: #16213e; margin-top: 20px; }}
-    li {{ margin: 6px 0; }}
-    ul {{ padding-left: 20px; }}
-    hr {{ border: none; border-top: 1px solid #e0e0e0; margin: 28px 0; }}
-    .footer {{
-      background: #f8f9ff; border: 1px solid #e0e0e0;
-      border-radius: 8px; padding: 20px 24px; margin-top: 40px;
-      font-size: 13px; color: #555;
+    h3 {{
+      color: #333;
+      font-size: 15px;
+      font-weight: 600;
+      margin: 22px 0 8px;
     }}
+    p {{ margin: 10px 0; font-size: 15px; color: #333; }}
+    ul {{ padding-left: 20px; margin: 10px 0; }}
+    li {{ margin: 6px 0; font-size: 15px; color: #333; }}
+    hr {{ border: none; border-top: 1px solid #eee; margin: 28px 0; }}
+    /* ── CTA button ── */
+    .cta-wrap {{ text-align: center; margin: 40px 0 20px; }}
     .cta {{
-      background: #e94560; color: #fff; display: inline-block;
-      padding: 14px 28px; border-radius: 8px; text-decoration: none;
-      font-weight: 600; margin: 16px 0;
+      display: inline-block;
+      padding: 15px 36px;
+      border-radius: 50px;
+      font-weight: 700;
+      font-size: 15px;
+      text-decoration: none;
+      color: #fff !important;
+      background: linear-gradient(90deg, #4fc3f7 0%, #ab47bc 50%, #ff7043 100%);
+      box-shadow: 0 4px 18px rgba(171,71,188,0.35);
+      letter-spacing: 0.3px;
     }}
+    /* ── Confidential badge ── */
+    .badge {{
+      display: inline-block;
+      background: linear-gradient(90deg,#4fc3f7,#ab47bc,#ff7043);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      margin-top: 10px;
+      text-transform: uppercase;
+    }}
+    /* ── Footer ── */
+    .footer {{
+      text-align: center;
+      margin-top: 32px;
+      padding: 20px;
+      font-size: 12px;
+      color: #888;
+    }}
+    .footer a {{ color: #ab47bc; text-decoration: none; }}
   </style>
 </head>
 <body>
+<div class="wrapper">
+
+  <!-- Header -->
   <div class="header">
-    <h1>Brand Audit Report</h1>
-    <p>{lead.company_name} &nbsp;|&nbsp; Prepared by {agency.name} &nbsp;|&nbsp; {today}</p>
-    <p>Confidential — For {lead.full_name} Only</p>
+    {logo_html}
+    <div class="header-meta">
+      <p><strong>Brand Audit Report</strong></p>
+      <p>Prepared for: <strong>{lead.company_name}</strong></p>
+      <p>Date: {today} &nbsp;|&nbsp; Prepared by {agency.name}</p>
+      <div class="badge">Confidential — For {lead.full_name} Only</div>
+    </div>
   </div>
 
-  {body}
+  <!-- Gradient accent bar -->
+  <div class="accent-bar"></div>
 
-  <div style="text-align:center; margin: 40px 0;">
-    <a href="{agency.website}/strategy-call" class="cta">
-      Book Your FREE 30-Minute Strategy Call
-    </a>
+  <!-- Report content -->
+  <div class="content">
+    {body}
+
+    <div class="cta-wrap">
+      <a href="{agency.website}/strategy-call" class="cta">
+        Book Your FREE 30-Min Strategy Call
+      </a>
+    </div>
   </div>
 
+  <!-- Footer -->
   <div class="footer">
-    <strong>{agency.sender_name}</strong>, {agency.sender_title}<br>
-    {agency.name} &nbsp;|&nbsp;
-    <a href="mailto:{agency.email}">{agency.email}</a> &nbsp;|&nbsp;
-    <a href="{agency.website}">{agency.website}</a>
+    <strong>{agency.sender_name}</strong> &mdash; {agency.sender_title}<br>
+    <a href="{agency.website}">{agency.name}</a> &nbsp;&bull;&nbsp;
+    <a href="mailto:{agency.email}">{agency.email}</a>
   </div>
+
+</div>
 </body>
 </html>"""
 

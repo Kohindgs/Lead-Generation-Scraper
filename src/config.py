@@ -147,6 +147,13 @@ class MetaConfig:
     google_sheet_id: str = os.getenv("GOOGLE_SHEET_ID", "")
     google_service_account_json: str = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
 
+    # Branding — logo URL used in HTML reports and DM messages
+    # Use the white-background logo for emails/reports
+    logo_url: str = os.getenv(
+        "META_LOGO_URL",
+        "https://www.dgeniussolutions.com/wp-content/uploads/dgs-logo-white-bg.png",
+    )
+
     # Polling behaviour
     scan_interval_minutes: int = int(os.getenv("META_SCAN_INTERVAL_MINUTES", 15))
     max_posts_per_scan: int = int(os.getenv("META_MAX_POSTS_PER_SCAN", 25))
