@@ -122,6 +122,7 @@ def _generate_report_async(psid: str, form_data: dict):
         website=form_data.get("website", ""),
     )
 
+    result = None
     try:
         generator = BrandReportGenerator()
         result = generator.generate(lead)
