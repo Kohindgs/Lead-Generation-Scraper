@@ -122,6 +122,36 @@ class EnrichmentConfig:
     apollo_key: str = os.getenv("APOLLO_API_KEY", "")
 
 
+class MetaConfig:
+    """Meta Graph API + campaign settings for the AI Content Reply System."""
+
+    # Meta App credentials
+    page_access_token: str = os.getenv("META_PAGE_ACCESS_TOKEN", "")
+    page_id: str = os.getenv("META_PAGE_ID", "")
+    instagram_account_id: str = os.getenv("META_IG_ACCOUNT_ID", "")
+
+    # Webhook (receives Google Form submissions)
+    webhook_secret: str = os.getenv("META_WEBHOOK_SECRET", "")
+    webhook_verify_token: str = os.getenv("META_WEBHOOK_VERIFY_TOKEN", "")
+
+    # Google Form URL (use PSID_PLACEHOLDER for per-user pre-filled links)
+    google_form_url: str = os.getenv("META_GOOGLE_FORM_URL", "")
+
+    # Gmail / Google Workspace SMTP for sending brand reports
+    smtp_host: str = os.getenv("META_SMTP_HOST", "smtp.gmail.com")
+    smtp_port: int = int(os.getenv("META_SMTP_PORT", 587))
+    smtp_user: str = os.getenv("META_SMTP_USER", os.getenv("SMTP_USER", ""))
+    smtp_pass: str = os.getenv("META_SMTP_PASS", os.getenv("SMTP_PASS", ""))
+
+    # Google Sheets (lead tracking)
+    google_sheet_id: str = os.getenv("GOOGLE_SHEET_ID", "")
+    google_service_account_json: str = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+
+    # Polling behaviour
+    scan_interval_minutes: int = int(os.getenv("META_SCAN_INTERVAL_MINUTES", 15))
+    max_posts_per_scan: int = int(os.getenv("META_MAX_POSTS_PER_SCAN", 25))
+
+
 # Singleton-style access
 agency = AgencyConfig()
 linkedin_cfg = LinkedInConfig()
@@ -130,3 +160,4 @@ scraper_cfg = ScraperConfig()
 db_cfg = DatabaseConfig()
 ai_cfg = AIConfig()
 enrich_cfg = EnrichmentConfig()
+meta_cfg = MetaConfig()

@@ -145,6 +145,84 @@ def main():
     se.add_argument("--min-score", type=int, default=50)
     se.add_argument("--limit", type=int, default=50)
 
+    # ── meta-reply ────────────────────────────────────────────────────────────
+    mr = subparsers.add_parser(
+        "meta-reply",
+        help=(
+            "AI Content Reply System: detect Meta comments → DM form link "
+            "→ generate brand audit → approve → send report"
+        ),
+    )
+    mr_sub = mr.add_subparsers(dest="meta_action", help="Action")
+
+    # meta-reply scan
+    mr_scan = mr_sub.add_parser(
+        "scan",
+        help="Scan Meta posts for 'AI Content' comments and send DMs",
+    )
+    mr_scan.add_argument(
+        "--watch", action="store_true",
+        help="Run continuously on a schedule (Ctrl+C to stop)",
+    )
+    mr_scan.add_argument(
+        "--interval", type=int, default=15,
+        help="Polling interval in minutes when using --watch (default: 15)",
+    )
+    mr_scan.add_argument(
+        "--max-posts", type=int, default=25,
+        help="Max posts to check per scan (default: 25)",
+    )
+    mr_scan.add_argument(
+        "--no-dms", action="store_true",
+        help="Scan only, do not send DMs",
+    )
+    mr_scan.add_argument("--dry-run", action="store_true")
+
+    # meta-reply webhook
+    mr_wh = mr_sub.add_parser(
+        "webhook",
+        help="Start the Flask webhook server to receive Google Form submissions",
+    )
+    mr_wh.add_argument(
+        "--port", type=int, default=5055,
+        help="Port to run the webhook server on (default: 5055)",
+    )
+    mr_wh.add_argument(
+        "--debug", action="store_true",
+        help="Run Flask in debug mode",
+    )
+
+    # meta-reply review
+    mr_rev = mr_sub.add_parser(
+        "review",
+        help="Interactive queue to review, approve, and send brand audit reports",
+    )
+    mr_rev.add_argument("--dry-run", action="store_true",
+                        help="Preview emails without actually sending")
+
+    # meta-reply list
+    mr_sub.add_parser("list", help="List all Meta leads and report statuses")
+
+    # meta-reply send
+    mr_send = mr_sub.add_parser(
+        "send",
+        help="Force-send a specific approved report",
+    )
+    mr_send.add_argument(
+        "--psid", required=True,
+        help="PSID of the lead to send the report to",
+    )
+    mr_send.add_argument("--dry-run", action="store_true")
+
+    # meta-reply sync-sheets
+    mr_sub.add_parser(
+        "sync-sheets",
+        help="Sync all Meta leads from SQLite to Google Sheets",
+    )
+
+    # meta-reply stats
+    mr_sub.add_parser("stats", help="Show AI Content campaign statistics")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -212,6 +290,9 @@ def main():
 
     elif args.command == "send-emails":
         _send_pending_emails(args)
+
+    elif args.command == "meta-reply":
+        _run_meta_reply(args)
 
     elif args.command == "all":
         from src.orchestrator import CampaignOrchestrator
@@ -522,6 +603,76 @@ def _export_db_leads(fmt: str, min_score: int, status: str, source: str):
         path = export_to_json(leads)
 
     print(f"Exported {len(leads)} leads → {path}")
+
+
+def _run_meta_reply(args):
+    """Dispatch meta-reply sub-commands."""
+    from src.utils.database import init_db
+    init_db()
+
+    action = getattr(args, "meta_action", None)
+
+    if not action:
+        print(
+            "\nUsage: python main.py meta-reply <action>\n\n"
+            "Actions:\n"
+            "  scan          Scan Meta for 'AI Content' comments + send DMs\n"
+            "  webhook       Start webhook server (receives Google Form data)\n"
+            "  review        Interactive report approval queue\n"
+            "  list          List all leads and report statuses\n"
+            "  send          Force-send a specific report (--psid required)\n"
+            "  sync-sheets   Sync all leads to Google Sheets\n"
+            "  stats         Campaign statistics\n"
+        )
+        return
+
+    if action == "scan":
+        from src.meta.campaign_manager import MetaCampaignManager
+        mgr = MetaCampaignManager()
+        if args.watch:
+            mgr.run_watch(
+                interval_minutes=args.interval,
+                max_posts=args.max_posts,
+                send_dms=not args.no_dms,
+                dry_run=args.dry_run,
+            )
+        else:
+            stats = mgr.run_scan(
+                max_posts=args.max_posts,
+                send_dms=not args.no_dms,
+                dry_run=args.dry_run,
+            )
+            print(f"\n  Scan complete — {stats['new_comments']} new comment(s), "
+                  f"{stats['dms_sent']} DM(s) sent.")
+
+    elif action == "webhook":
+        from src.meta.webhook_handler import run_server
+        run_server(port=args.port, debug=args.debug)
+
+    elif action == "review":
+        from src.meta.report_approver import run_review_queue
+        run_review_queue(dry_run=args.dry_run)
+
+    elif action == "list":
+        from src.meta.report_approver import list_reports
+        list_reports()
+
+    elif action == "send":
+        from src.meta.report_approver import force_send_report
+        force_send_report(psid=args.psid, dry_run=args.dry_run)
+
+    elif action == "sync-sheets":
+        from src.meta.sheets_logger import SheetsLogger
+        sheets = SheetsLogger()
+        count = sheets.sync_all()
+        print(f"\n  Synced {count} leads to Google Sheets.")
+
+    elif action == "stats":
+        from src.meta.campaign_manager import MetaCampaignManager
+        MetaCampaignManager().show_stats()
+
+    else:
+        print(f"Unknown meta-reply action: '{action}'")
 
 
 if __name__ == "__main__":

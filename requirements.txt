@@ -58,3 +58,8 @@ rich==13.7.1
 # HTTP retries
 tenacity==8.2.3
 backoff==2.2.1
+
+# Meta AI Content Reply System
+flask==3.0.3             # webhook server for Google Form submissions
+gspread==6.1.2           # Google Sheets logging
+google-auth==2.29.0      # Google Service Account authentication
