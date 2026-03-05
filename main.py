@@ -223,6 +223,25 @@ def main():
     # meta-reply stats
     mr_sub.add_parser("stats", help="Show AI Content campaign statistics")
 
+    # meta-reply setup
+    mr_setup = mr_sub.add_parser(
+        "setup",
+        help=(
+            "Interactive wizard: validate your Page Access Token and "
+            "auto-discover Page ID + Instagram Account ID"
+        ),
+    )
+    mr_setup.add_argument(
+        "--token",
+        default="",
+        help="Meta Page Access Token (or set META_PAGE_ACCESS_TOKEN in .env)",
+    )
+    mr_setup.add_argument(
+        "--page-id",
+        default="",
+        help="Facebook Page ID (auto-detected from token if omitted)",
+    )
+
     args = parser.parse_args()
 
     if not args.command:
@@ -616,6 +635,7 @@ def _run_meta_reply(args):
         print(
             "\nUsage: python main.py meta-reply <action>\n\n"
             "Actions:\n"
+            "  setup         Validate token & auto-discover credentials (.env helper)\n"
             "  scan          Scan Meta for 'AI Content' comments + send DMs\n"
             "  webhook       Start webhook server (receives Google Form data)\n"
             "  review        Interactive report approval queue\n"
@@ -626,7 +646,14 @@ def _run_meta_reply(args):
         )
         return
 
-    if action == "scan":
+    if action == "setup":
+        from src.meta.setup_helper import run_setup
+        run_setup(
+            token=getattr(args, "token", ""),
+            page_id=getattr(args, "page_id", ""),
+        )
+
+    elif action == "scan":
         from src.meta.campaign_manager import MetaCampaignManager
         mgr = MetaCampaignManager()
         if args.watch:
